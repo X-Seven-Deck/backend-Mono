@@ -1,0 +1,43 @@
+# Dedicated Business Chat Service Dependencies
+
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+pydantic-settings==2.6.0
+
+# Database & ORM
+supabase==2.9.0
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# AI & ML
+openai==1.54.3
+langchain==0.3.7
+langchain-openai==0.2.8
+langchain-community==0.3.7
+crewai==0.80.0
+dspy-ai==2.5.5
+
+# Vector Store
+pgvector==0.3.5
+
+# Caching & Message Queue
+redis==5.2.0
+aioredis==2.0.1
+
+# HTTP Client
+httpx==0.27.2
+aiohttp==3.11.7
+
+# Monitoring & Observability
+prometheus-client==0.21.0
+opentelemetry-api==1.28.2
+opentelemetry-sdk==1.28.2
+opentelemetry-instrumentation-fastapi==0.49b2
+sentry-sdk[fastapi]==2.18.0
+
+# Utilities
+python-dotenv==1.0.1
+python-multipart==0.0.17
+pyjwt==2.9.0

@@ -1,0 +1,223 @@
+{
+  "dashboard": {
+    "title": "DevOps Service Dashboard",
+    "tags": ["devops", "gitops", "incidents"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Canary Deployments (24h)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(increase(canary_deployments_total[24h]))",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "area",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Deployment Success Rate",
+        "type": "gauge",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(increase(canary_deployments_total{status=\"success\"}[24h])) / sum(increase(canary_deployments_total[24h])) * 100",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Active Incidents",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(incidents_active{status!=\"resolved\"})",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "graphMode": "none",
+          "colorMode": "background"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "MTTR (Mean Time To Resolve)",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [
+          {
+            "expr": "avg(incident_resolution_duration_seconds) / 60",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "m",
+            "decimals": 1
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Deployment Timeline",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(canary_deployments_total[5m])) by (service, status)",
+            "legendFormat": "{{service}} - {{status}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Deployments/min"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Incidents by Severity",
+        "type": "piechart",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [
+          {
+            "expr": "sum by (severity) (incidents_total)",
+            "legendFormat": "{{severity}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Incident Response Time",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(incident_response_duration_seconds_bucket[5m])) by (le)) / 60",
+            "legendFormat": "P95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(incident_response_duration_seconds_bucket[5m])) by (le)) / 60",
+            "legendFormat": "P99",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "m", "label": "Response Time (minutes)"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "SLO Compliance by Service",
+        "type": "table",
+        "gridPos": {"h": 8, "w": 24, "x": 0, "y": 20},
+        "targets": [
+          {
+            "expr": "slo_compliance_percentage",
+            "format": "table",
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "renameByName": {
+                "service": "Service",
+                "sli_type": "SLI Type",
+                "Value": "Compliance %"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Cache Hit Rate",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+        "targets": [
+          {
+            "expr": "sum(rate(cache_hits_total[5m])) / (sum(rate(cache_hits_total[5m])) + sum(rate(cache_misses_total[5m]))) * 100",
+            "legendFormat": "Hit Rate",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "percent", "label": "Hit Rate"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Error Budget Remaining",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+        "targets": [
+          {
+            "expr": "error_budget_remaining_percentage",
+            "legendFormat": "{{service}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "green"}
+              ]
+            },
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      }
+    ]
+  }
+}

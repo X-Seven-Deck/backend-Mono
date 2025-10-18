@@ -1,0 +1,232 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+        
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+        
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+        
+    - name: Set environment variables
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "ENVIRONMENT=production" >> $GITHUB_ENV
+          echo "K8S_NAMESPACE=x7ai-prod" >> $GITHUB_ENV
+        else
+          echo "ENVIRONMENT=staging" >> $GITHUB_ENV
+          echo "K8S_NAMESPACE=x7ai-staging" >> $GITHUB_ENV
+        fi
+        
+        # Set image tag based on git ref
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        else
+          echo "IMAGE_TAG=${GITHUB_SHA::8}" >> $GITHUB_ENV
+        fi
+        
+        echo "DOCKER_REGISTRY=${{ secrets.DOCKER_REGISTRY }}" >> $GITHUB_ENV
+        
+    - name: Create namespace if not exists
+      run: |
+        kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
+        
+    - name: Create secrets
+      run: |
+        # Base64 encode secrets
+        SUPABASE_URL_BASE64=$(echo -n "${{ secrets.SUPABASE_URL }}" | base64)
+        SUPABASE_ANON_KEY_BASE64=$(echo -n "${{ secrets.SUPABASE_ANON_KEY }}" | base64)
+        SUPABASE_SERVICE_ROLE_KEY_BASE64=$(echo -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" | base64)
+        JWT_SECRET_BASE64=$(echo -n "${{ secrets.JWT_SECRET }}" | base64)
+        OPENAI_API_KEY_BASE64=$(echo -n "${{ secrets.OPENAI_API_KEY }}" | base64)
+        ELEVENLABS_API_KEY_BASE64=$(echo -n "${{ secrets.ELEVENLABS_API_KEY }}" | base64)
+        TWILIO_ACCOUNT_SID_BASE64=$(echo -n "${{ secrets.TWILIO_ACCOUNT_SID }}" | base64)
+        TWILIO_AUTH_TOKEN_BASE64=$(echo -n "${{ secrets.TWILIO_AUTH_TOKEN }}" | base64)
+        ZAPIER_WEBHOOK_URL_BASE64=$(echo -n "${{ secrets.ZAPIER_WEBHOOK_URL }}" | base64)
+        GRAFANA_ADMIN_USER_BASE64=$(echo -n "admin" | base64)
+        GRAFANA_ADMIN_PASSWORD_BASE64=$(echo -n "${{ secrets.GRAFANA_ADMIN_PASSWORD }}" | base64)
+        
+        # Apply secrets with variable substitution
+        cat infra/kubernetes/secrets.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${SUPABASE_URL_BASE64}/$SUPABASE_URL_BASE64/g" | \
+          sed "s/\${SUPABASE_ANON_KEY_BASE64}/$SUPABASE_ANON_KEY_BASE64/g" | \
+          sed "s/\${SUPABASE_SERVICE_ROLE_KEY_BASE64}/$SUPABASE_SERVICE_ROLE_KEY_BASE64/g" | \
+          sed "s/\${JWT_SECRET_BASE64}/$JWT_SECRET_BASE64/g" | \
+          sed "s/\${OPENAI_API_KEY_BASE64}/$OPENAI_API_KEY_BASE64/g" | \
+          sed "s/\${ELEVENLABS_API_KEY_BASE64}/$ELEVENLABS_API_KEY_BASE64/g" | \
+          sed "s/\${TWILIO_ACCOUNT_SID_BASE64}/$TWILIO_ACCOUNT_SID_BASE64/g" | \
+          sed "s/\${TWILIO_AUTH_TOKEN_BASE64}/$TWILIO_AUTH_TOKEN_BASE64/g" | \
+          sed "s/\${ZAPIER_WEBHOOK_URL_BASE64}/$ZAPIER_WEBHOOK_URL_BASE64/g" | \
+          kubectl apply -f -
+          
+        # Apply Grafana secrets
+        cat infra/kubernetes/monitoring/grafana-deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${GRAFANA_ADMIN_USER_BASE64}/$GRAFANA_ADMIN_USER_BASE64/g" | \
+          sed "s/\${GRAFANA_ADMIN_PASSWORD_BASE64}/$GRAFANA_ADMIN_PASSWORD_BASE64/g" | \
+          kubectl apply -f -
+        
+    - name: Deploy API Gateway
+      run: |
+        cat services/api-gateway/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/api-gateway/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+        cat services/api-gateway/k8s/configmap.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Auth Service
+      run: |
+        cat services/auth-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/auth-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Business Logic Service
+      run: |
+        cat services/business-logic-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/business-logic-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy AI Orchestration Service
+      run: |
+        cat services/ai-orchestration-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/ai-orchestration-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Chat & Communication Service
+      run: |
+        cat services/chat-communication-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/chat-communication-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Analytics Dashboard Service
+      run: |
+        cat services/analytics-dashboard-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/analytics-dashboard-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Notification & Integration Service
+      run: |
+        cat services/notification-integration-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/notification-integration-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Monitoring & Logging Service
+      run: |
+        cat services/monitoring-logging-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/monitoring-logging-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Global Chat Service
+      run: |
+        cat services/global-chat-service/k8s/deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          sed "s/\${DOCKER_REGISTRY}/${{ env.DOCKER_REGISTRY }}/g" | \
+          sed "s/\${IMAGE_TAG}/${{ env.IMAGE_TAG }}/g" | \
+          kubectl apply -f -
+          
+        cat services/global-chat-service/k8s/service.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Deploy Monitoring Stack
+      run: |
+        cat infra/kubernetes/monitoring/prometheus-deployment.yaml | \
+          sed "s/\${K8S_NAMESPACE}/${{ env.K8S_NAMESPACE }}/g" | \
+          kubectl apply -f -
+          
+    - name: Verify deployment
+      run: |
+        kubectl rollout status deployment/api-gateway -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/auth-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/business-logic-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/ai-orchestration-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/chat-communication-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/analytics-dashboard-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/notification-integration-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/monitoring-logging-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/global-chat-service -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/prometheus -n ${{ env.K8S_NAMESPACE }}
+        kubectl rollout status deployment/grafana -n ${{ env.K8S_NAMESPACE }}
+        
+    - name: Notify deployment status
+      if: always()
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        SLACK_CHANNEL: deployments
+        SLACK_COLOR: ${{ job.status }}
+        SLACK_TITLE: Deployment to ${{ env.ENVIRONMENT }}
+        SLACK_MESSAGE: 'Deployment of X-sevenAI to ${{ env.ENVIRONMENT }} ${{ job.status }}'
+        SLACK_FOOTER: 'X-sevenAI Deployment'

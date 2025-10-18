@@ -1,0 +1,66 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "api-gateway"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api-gateway:8001"]
+
+  - job_name: "auth-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["auth-service:8010"]
+
+  - job_name: "business-logic-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["business-logic-service:8020"]
+
+  - job_name: "ai-orchestration-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ai-orchestration-service:8030"]
+
+  - job_name: "chat-communication-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["chat-communication-service:8040"]
+
+  - job_name: "analytics-dashboard-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["analytics-dashboard-service:8050"]
+
+  - job_name: "notification-integration-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["notification-integration-service:8060"]
+
+  - job_name: "global-chat-service"
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["global-chat-service:8070"]
+
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]

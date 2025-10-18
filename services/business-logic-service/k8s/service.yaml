@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: business-logic-service
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: business-logic-service
+    tier: backend
+spec:
+  selector:
+    app: business-logic-service
+  ports:
+  - port: 8020
+    targetPort: 8020
+    protocol: TCP
+    name: http
+  type: ClusterIP

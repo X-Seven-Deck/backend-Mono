@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chat-communication-service
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: chat-communication-service
+    tier: backend
+spec:
+  selector:
+    app: chat-communication-service
+  ports:
+  - port: 8040
+    targetPort: 8040
+    protocol: TCP
+    name: http
+  type: ClusterIP

@@ -1,0 +1,48 @@
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+pydantic-settings==2.6.0
+python-dotenv==1.0.1
+python-multipart==0.0.9
+
+# WebSockets & Real-time
+websockets==13.0
+python-socketio==5.11.3
+
+# Voice Processing
+elevenlabs==1.8.0
+openai==1.54.3
+speechrecognition==3.10.4
+pydub==0.25.1
+
+# WebRTC & LiveKit
+livekit==0.13.1
+livekit-api==1.0.6
+livekit-protocol==1.0.7
+
+# Event Streaming
+kafka-python==2.0.2
+aiokafka==0.11.0
+
+# Caching & Storage
+redis==5.0.8
+hiredis==2.3.2
+
+# Database
+supabase==2.9.0
+psycopg2-binary==2.9.9
+asyncpg==0.29.0
+
+# Async & HTTP
+httpx==0.27.2
+aiohttp==3.11.7
+
+# Monitoring
+prometheus-client==0.21.0
+opentelemetry-api==1.28.2
+opentelemetry-sdk==1.28.2
+
+# Utilities
+python-json-logger==2.0.7
+tenacity==8.5.0

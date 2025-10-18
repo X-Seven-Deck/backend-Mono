@@ -1,0 +1,446 @@
+_format_version: "3.0"
+_transform: true
+
+services:
+  # Auth Service
+  - name: auth-service
+    url: http://auth-service:8010
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/v1/auth
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: auth-service
+
+  # Business Logic Service
+  - name: business-logic-service
+    url: http://business-logic-service:8020
+    routes:
+      - name: business-logic-routes
+        paths:
+          - /api/v1/business
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: business-logic-service
+
+  # AI Orchestration Service
+  - name: ai-orchestration-service
+    url: http://ai-orchestration-service:8030
+    routes:
+      - name: ai-orchestration-routes
+        paths:
+          - /api/v1/ai
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: ai-orchestration-service
+
+  # Chat & Communication Service
+  - name: chat-communication-service
+    url: http://chat-communication-service:8040
+    routes:
+      - name: chat-communication-routes
+        paths:
+          - /api/v1/chat
+        strip_path: true
+      - name: websocket-routes
+        paths:
+          - /ws
+        strip_path: false
+        protocols:
+          - http
+          - https
+          - ws
+          - wss
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 300
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: chat-communication-service
+
+  # Analytics & Dashboard Service
+  - name: analytics-dashboard-service
+    url: http://analytics-dashboard-service:8050
+    routes:
+      - name: analytics-dashboard-routes
+        paths:
+          - /api/v1/analytics
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: analytics-dashboard-service
+
+  # Notification & Integration Service
+  - name: notification-integration-service
+    url: http://notification-integration-service:8060
+    routes:
+      - name: notification-integration-routes
+        paths:
+          - /api/v1/notifications
+        strip_path: true
+      - name: webhooks-routes
+        paths:
+          - /webhooks
+        strip_path: false
+    plugins:
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: notification-integration-service
+
+  # Global Chat Service
+  - name: global-chat-service
+    url: http://global-chat-service:8070
+    routes:
+      - name: global-chat-routes
+        paths:
+          - /api/v1/global-chat
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 180
+          policy: local
+      - name: prometheus
+        config:
+          add:
+            headers:
+              - X-Service: global-chat-service
+
+  # Dedicated Business Chat Service (Standalone Python Service)
+  - name: dedicated-business-chat-service
+    url: http://dedicated-business-chat-service:8050
+    routes:
+      - name: dedicated-chat-routes
+        paths:
+          - /api/v1/dedicated-chat
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: dedicated-business-chat-service
+
+  # POS Service
+  - name: pos-service
+    url: http://pos-service:8070
+    routes:
+      - name: pos-routes
+        paths:
+          - /api/v1/pos
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 180
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: pos-service
+
+  # Monitoring & Logging Service
+  - name: monitoring-logging-service
+    url: http://monitoring-logging-service:8080
+    routes:
+      - name: monitoring-logging-routes
+        paths:
+          - /api/v1/monitoring
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: monitoring-logging-service
+
+  # Template Selection Service
+  - name: template-selection-service
+    url: http://template-selection-service:8090
+    routes:
+      - name: template-selection-routes
+        paths:
+          - /api/v1/templates
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: template-selection-service
+
+  # DevOps Service
+  - name: devops-service
+    url: http://devops-service:8100
+    routes:
+      - name: devops-routes
+        paths:
+          - /api/v1/devops
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: jwt
+        config:
+          secret_is_base64: false
+          claims_to_verify:
+            - exp
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+      - name: prometheus
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Service: devops-service
+
+  # Entry Points
+  # QR Code Entry Point
+  - name: qr-entry
+    url: http://api-gateway:8000/api/v1/chat
+    routes:
+      - name: qr-routes
+          - /qr
+        strip_path: true
+    plugins:
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Entry-Point: qr-code
+
+  # WhatsApp Entry Point
+  - name: whatsapp-entry
+    url: http://notification-integration-service:8060/webhooks/whatsapp
+    routes:
+      - name: whatsapp-routes
+        paths:
+          - /webhooks/whatsapp
+        strip_path: false
+    plugins:
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Entry-Point: whatsapp
+
+  # Instagram/Facebook Entry Point
+  - name: social-entry
+    url: http://notification-integration-service:8060/webhooks/social
+    routes:
+      - name: social-routes
+        paths:
+          - /webhooks/social
+        strip_path: false
+    plugins:
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 120
+          policy: local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Entry-Point: social
+
+  # Voice/WebRTC Entry Point
+  - name: voice-entry
+    url: http://chat-communication-service:8040/ws/voice
+    routes:
+      - name: voice-routes
+        paths:
+          - /voice
+        strip_path: true
+        protocols:
+          - http
+          - https
+          - ws
+          - wss
+    plugins:
+      - name: cors
+      - name: rate-limiting
+        config:
+          minute: 60
+          policy: local
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - X-Entry-Point: voice
+
+# Global Plugins
+plugins:
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+        - PATCH
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - X-Auth-Token
+        - Authorization
+      credentials: true
+      max_age: 3600
+      preflight_continue: false
+
+  - name: prometheus
+    config:
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true
+
+  - name: ip-restriction
+    config:
+      deny: null
+      message: "Access denied"
+
+  - name: request-id
+    config:
+      header_name: X-Request-ID
+      generator: uuid
+      echo_downstream: true
