@@ -1,0 +1,93 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: ${K8S_NAMESPACE}
+  labels:
+    app: auth-service
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: auth-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8010"
+        prometheus.io/path: "/metrics"
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "auth-service"
+        vault.hashicorp.com/agent-inject-secret-supabase.json: "kv/data/supabase"
+        vault.hashicorp.com/agent-inject-template-supabase.json: |
+          {{- with secret "kv/data/supabase" -}}
+          {
+            "url": "{{ .Data.data.url }}",
+            "anon_key": "{{ .Data.data.anon_key }}",
+            "service_role_key": "{{ .Data.data.service_role_key }}"
+          }
+          {{- end -}}
+        vault.hashicorp.com/agent-inject-secret-auth.json: "kv/data/auth"
+        vault.hashicorp.com/agent-inject-template-auth.json: |
+          {{- with secret "kv/data/auth" -}}
+          {
+            "jwt_secret": "{{ .Data.data.jwt_secret }}"
+          }
+          {{- end -}}
+    spec:
+      serviceAccountName: auth-service
+      containers:
+      - name: auth-service
+        image: ${DOCKER_REGISTRY}/x7ai/auth-service:${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8010
+          name: http
+        env:
+        - name: AUTH_SERVICE_HOST
+          value: "0.0.0.0"
+        - name: AUTH_SERVICE_PORT
+          value: "8010"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: SUPABASE_URL
+          value: "$(cat /vault/secrets/supabase.json | jq -r '.url')"
+        - name: SUPABASE_ANON_KEY
+          value: "$(cat /vault/secrets/supabase.json | jq -r '.anon_key')"
+        - name: SUPABASE_SERVICE_ROLE_KEY
+          value: "$(cat /vault/secrets/supabase.json | jq -r '.service_role_key')"
+        - name: JWT_SECRET
+          value: "$(cat /vault/secrets/auth.json | jq -r '.jwt_secret')"
+        - name: JWT_EXPIRY
+          value: "86400"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8010
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8010
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 3
