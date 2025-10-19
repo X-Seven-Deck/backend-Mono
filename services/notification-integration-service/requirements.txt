@@ -1,13 +1,56 @@
+# FastAPI and Server
 fastapi==0.104.1
-uvicorn==0.24.0
+uvicorn[standard]==0.24.0
 pydantic==2.5.2
 pydantic-settings==2.1.0
 python-dotenv==1.0.0
+
+# HTTP Client
 httpx==0.25.2
-asyncio==3.4.3
+aiohttp==3.9.1
+
+# Message Queue
 kafka-python==2.0.2
+aiokafka==0.8.1
+
+# Notification Providers
 twilio==8.10.0
 sendgrid==6.10.0
-prometheus-client==0.19.0
+firebase-admin==6.3.0
+
+# Database
+supabase==2.0.3
+asyncpg==0.29.0
+sqlalchemy==2.0.23
+alembic==1.13.0
+
+# Caching & State
 redis==5.0.1
+aioredis==2.0.1
+
+# Monitoring & Metrics
+prometheus-client==0.19.0
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-fastapi==0.42b0
+sentry-sdk[fastapi]==1.39.1
+
+# Utilities
 email-validator==2.1.0
+python-multipart==0.0.6
+jinja2==3.1.2
+python-jose[cryptography]==3.3.0
+celery==5.3.4
+flower==2.0.1
+
+# Rate Limiting
+slowapi==0.1.9
+
+# Template Engines
+beautifulsoup4==4.12.2
+markdown==3.5.1
+
+# Testing (optional but recommended)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+httpx==0.25.2

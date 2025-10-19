@@ -27,9 +27,15 @@ logger = logging.getLogger(__name__)
 from app.routes.tenant_routes import router as tenant_router
 from app.routes.template_routes import router as template_router
 from app.routes.ai_features_routes import router as ai_features_router
+from app.routes.order_routes import router as order_router
+from app.routes.reservation_routes import router as reservation_router
+from app.routes.inventory_routes import router as inventory_router
+from app.routes.payment_routes import router as payment_router
 
 # Import middleware
 from app.middleware.tenant_middleware import TenantContextMiddleware, ResourceQuotaMiddleware
+from app.middleware.logging_middleware import RequestLoggingMiddleware
+from app.middleware.rate_limit_middleware import rate_limit_middleware
 
 # Import DevOps client
 import sys
@@ -42,9 +48,12 @@ sys.path.append(shared_path)
 from libs.devops_client import get_devops_client, IncidentSeverity
 
 # Configuration
+from app.config.settings import get_settings
+
 SERVICE_NAME = "business-logic-service"
-SERVICE_PORT = int(os.getenv("BUSINESS_LOGIC_PORT", 8020))
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+settings = get_settings()
+SERVICE_PORT = settings.PORT
+LOG_LEVEL = settings.LOG_LEVEL
 
 # Prometheus metrics
 REQUEST_COUNT = Counter(
@@ -76,14 +85,24 @@ async def lifespan(app: FastAPI):
     
     # Initialize services
     from app.services.tenant_service import get_tenant_service
+    from app.services.kafka_service import get_kafka_service
+    from app.services.temporal_service import get_temporal_service
     
     try:
         tenant_service = get_tenant_service()
         logger.info("✅ Tenant Service initialized")
         
-        # TODO: Initialize Temporal client
-        # TODO: Initialize Kafka producer/consumer
-        # TODO: Initialize Supabase client
+        # Initialize Kafka if enabled
+        if settings.ENABLE_KAFKA_EVENTS:
+            kafka_service = get_kafka_service()
+            await kafka_service.start()
+            logger.info("✅ Kafka service started")
+        
+        # Initialize Temporal if enabled
+        if settings.ENABLE_TEMPORAL_WORKFLOWS:
+            temporal_service = get_temporal_service()
+            await temporal_service.start()
+            logger.info("✅ Temporal service started")
         
         logger.info(f"✅ {SERVICE_NAME} started successfully")
         
@@ -100,6 +119,21 @@ async def lifespan(app: FastAPI):
     yield
     
     logger.info(f"🛑 Shutting down {SERVICE_NAME}")
+    
+    # Cleanup
+    if settings.ENABLE_KAFKA_EVENTS:
+        try:
+            kafka_service = get_kafka_service()
+            await kafka_service.stop()
+        except:
+            pass
+    
+    if settings.ENABLE_TEMPORAL_WORKFLOWS:
+        try:
+            temporal_service = get_temporal_service()
+            await temporal_service.stop()
+        except:
+            pass
 
 
 # Create FastAPI app
@@ -122,12 +156,18 @@ app.add_middleware(
 # Add tenant middleware
 app.add_middleware(TenantContextMiddleware)
 app.add_middleware(ResourceQuotaMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.middleware("http")(rate_limit_middleware)
 
 
 # Include routers
 app.include_router(tenant_router)
 app.include_router(template_router)
 app.include_router(ai_features_router)
+app.include_router(order_router)
+app.include_router(reservation_router)
+app.include_router(inventory_router)
+app.include_router(payment_router)
 
 
 # Middleware for metrics
@@ -228,99 +268,14 @@ async def root():
     """Root endpoint"""
     return {
         "service": SERVICE_NAME,
-        "version": "0.1.0",
+        "version": "1.0.0",
         "status": "running",
-        "timestamp": datetime.utcnow().isoformat()
-    }
-
-
-# Orders endpoints
-@app.post("/api/v1/orders")
-async def create_order(order_data: dict):
-    """
-    Create new order
-    
-    Triggers Temporal workflow for order processing
-    """
-    try:
-        # TODO: Start Temporal workflow
-        # TODO: Publish Kafka event
-        
-        return {
-            "status": "success",
-            "order_id": f"ord_{int(datetime.utcnow().timestamp())}",
-            "message": "Order created successfully"
+        "timestamp": datetime.utcnow().isoformat(),
+        "features": {
+            "kafka_events": settings.ENABLE_KAFKA_EVENTS,
+            "temporal_workflows": settings.ENABLE_TEMPORAL_WORKFLOWS,
+            "ai_features": settings.ENABLE_AI_FEATURES
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/v1/orders/{order_id}")
-async def get_order(order_id: str):
-    """Get order by ID"""
-    # TODO: Query from Supabase
-    return {
-        "order_id": order_id,
-        "status": "pending",
-        "items": []
-    }
-
-
-@app.put("/api/v1/orders/{order_id}")
-async def update_order(order_id: str, updates: dict):
-    """Update order"""
-    # TODO: Update in Supabase
-    # TODO: Publish Kafka event
-    return {
-        "order_id": order_id,
-        "status": "updated"
-    }
-
-
-# Reservations endpoints
-@app.post("/api/v1/reservations")
-async def create_reservation(reservation_data: dict):
-    """
-    Create new reservation
-    
-    Triggers Temporal workflow for reservation processing
-    """
-    try:
-        return {
-            "status": "success",
-            "reservation_id": f"res_{int(datetime.utcnow().timestamp())}",
-            "message": "Reservation created successfully"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/v1/reservations/{reservation_id}")
-async def get_reservation(reservation_id: str):
-    """Get reservation by ID"""
-    return {
-        "reservation_id": reservation_id,
-        "status": "confirmed",
-        "details": {}
-    }
-
-
-# Inventory endpoints
-@app.get("/api/v1/inventory")
-async def get_inventory(business_id: str):
-    """Get inventory for business"""
-    return {
-        "business_id": business_id,
-        "items": []
-    }
-
-
-@app.post("/api/v1/inventory")
-async def update_inventory(inventory_data: dict):
-    """Update inventory"""
-    return {
-        "status": "success",
-        "message": "Inventory updated"
     }
 
 

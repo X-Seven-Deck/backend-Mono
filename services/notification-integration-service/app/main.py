@@ -25,9 +25,12 @@ from app.services.twilio_service import twilio_service
 from app.services.sendgrid_service import sendgrid_service
 from app.services.zapier_service import zapier_service
 from app.services.kafka_consumer import kafka_consumer
+from app.services.push_notification_service import push_notification_service
+from app.services.template_engine import template_engine
+from app.services.notification_repository import notification_repository
 
 # Import routes
-from app.routes import notifications, webhooks, health
+from app.routes import notifications, webhooks, health, push, scheduler
 
 # Configure logging
 setup_logger("notification-service", settings.log_level)
@@ -59,6 +62,18 @@ async def lifespan(app: FastAPI):
     
     # Initialize services
     try:
+        await notification_repository.initialize()
+        logger.info("Database repository initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize repository: {e}")
+    
+    try:
+        await template_engine.initialize()
+        logger.info("Template engine initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize template engine: {e}")
+    
+    try:
         await twilio_service.initialize()
         logger.info("Twilio service initialized")
     except Exception as e:
@@ -76,12 +91,21 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize Zapier: {e}")
     
-    # Start Kafka consumer for event-driven notifications
     try:
-        await kafka_consumer.start()
-        logger.info("Kafka consumer started")
+        await push_notification_service.initialize()
+        logger.info("Push notification service initialized")
     except Exception as e:
-        logger.error(f"Failed to start Kafka consumer: {e}")
+        logger.error(f"Failed to initialize push notifications: {e}")
+    
+    # Start Kafka consumer for event-driven notifications
+    if settings.kafka_enable:
+        try:
+            await kafka_consumer.start()
+            logger.info("Kafka consumer started")
+        except Exception as e:
+            logger.error(f"Failed to start Kafka consumer: {e}")
+    else:
+        logger.info("Kafka consumer disabled")
     
     logger.info("Notification Integration Service started successfully")
     
@@ -169,6 +193,8 @@ async def metrics():
 # Include routers
 app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["notifications"])
+app.include_router(push.router, prefix="/api/v1/push", tags=["push-notifications"])
+app.include_router(scheduler.router, prefix="/api/v1/schedule", tags=["scheduler"])
 app.include_router(webhooks.router, prefix="/api/v1/webhooks", tags=["webhooks"])
 
 
@@ -180,7 +206,15 @@ async def root():
         "service": "Notification Integration Service",
         "version": "1.0.0",
         "status": "running",
-        "channels": ["sms", "email", "webhook", "push"],
+        "channels": ["sms", "email", "whatsapp", "webhook", "push"],
+        "features": [
+            "Multi-channel notifications",
+            "Scheduled notifications",
+            "Template engine",
+            "Event-driven (Kafka)",
+            "Database persistence",
+            "Analytics & monitoring"
+        ],
         "timestamp": datetime.utcnow().isoformat()
     }
 

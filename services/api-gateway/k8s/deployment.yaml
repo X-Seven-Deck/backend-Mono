@@ -2,84 +2,153 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: api-gateway
-  namespace: ${K8S_NAMESPACE}
+  namespace: x7ai
   labels:
     app: api-gateway
     tier: gateway
+    version: v1
 spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: api-gateway
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: api-gateway
   template:
     metadata:
       labels:
         app: api-gateway
+        tier: gateway
+        version: v1
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "8001"
+        prometheus.io/port: "8000"
         prometheus.io/path: "/metrics"
     spec:
+      serviceAccountName: api-gateway
       containers:
       - name: api-gateway
         image: ${DOCKER_REGISTRY}/x7ai/api-gateway:${IMAGE_TAG}
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
-          name: proxy
-        - containerPort: 8001
-          name: admin
-        - containerPort: 8443
-          name: proxy-ssl
-        - containerPort: 8444
-          name: admin-ssl
+          name: http
+          protocol: TCP
         env:
-        - name: KONG_DATABASE
-          value: "off"
-        - name: KONG_DECLARATIVE_CONFIG
-          value: "/usr/local/kong/declarative/kong.yaml"
-        - name: KONG_PROXY_ACCESS_LOG
-          value: "/dev/stdout"
-        - name: KONG_ADMIN_ACCESS_LOG
-          value: "/dev/stdout"
-        - name: KONG_PROXY_ERROR_LOG
-          value: "/dev/stderr"
-        - name: KONG_ADMIN_ERROR_LOG
-          value: "/dev/stderr"
-        - name: KONG_ADMIN_LISTEN
-          value: "0.0.0.0:8001"
-        volumeMounts:
-        - name: kong-config
-          mountPath: /usr/local/kong/declarative
+        - name: ENVIRONMENT
+          value: "production"
+        - name: GATEWAY_SERVICE_HOST
+          value: "0.0.0.0"
+        - name: GATEWAY_SERVICE_PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: ENABLE_CIRCUIT_BREAKER
+          value: "true"
+        - name: HEALTH_CHECK_ENABLED
+          value: "true"
+        - name: ENABLE_PROMETHEUS
+          value: "true"
+        envFrom:
+        - configMapRef:
+            name: api-gateway-config
+        - secretRef:
+            name: api-gateway-secrets
         resources:
           requests:
-            cpu: 200m
-            memory: 256Mi
+            cpu: "500m"
+            memory: "512Mi"
           limits:
-            cpu: 500m
-            memory: 512Mi
+            cpu: "2000m"
+            memory: "2Gi"
         livenessProbe:
           httpGet:
-            path: /status
-            port: 8001
-          initialDelaySeconds: 30
-          periodSeconds: 10
+            path: /api/v1/health/live
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
           timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /status
-            port: 8001
-          initialDelaySeconds: 15
-          periodSeconds: 5
+            path: /api/v1/health/ready
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
-      volumes:
-      - name: kong-config
-        configMap:
-          name: kong-config
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+      terminationGracePeriodSeconds: 30
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - api-gateway
+              topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-gateway
+  namespace: x7ai
+  labels:
+    app: api-gateway
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-gateway-config
+  namespace: x7ai
+  labels:
+    app: api-gateway
+data:
+  # Service URLs
+  AUTH_SERVICE_URL: "http://auth-service:8010"
+  BUSINESS_LOGIC_SERVICE_URL: "http://business-logic-service:8020"
+  AI_ORCHESTRATION_SERVICE_URL: "http://ai-orchestration-service:8030"
+  CHAT_COMMUNICATION_SERVICE_URL: "http://chat-communication-service:8040"
+  ANALYTICS_DASHBOARD_SERVICE_URL: "http://analytics-dashboard-service:8050"
+  NOTIFICATION_INTEGRATION_SERVICE_URL: "http://notification-integration-service:8060"
+  GLOBAL_CHAT_SERVICE_URL: "http://global-chat-service:8070"
+  DEDICATED_BUSINESS_CHAT_SERVICE_URL: "http://dedicated-business-chat-service:8050"
+  POS_SERVICE_URL: "http://pos-service:8070"
+  TEMPLATE_SELECTION_SERVICE_URL: "http://template-selection-service:8090"
+  MONITORING_LOGGING_SERVICE_URL: "http://monitoring-logging-service:8080"
+  DEVOPS_SERVICE_URL: "http://devops-service:8100"
+  
+  # Circuit Breaker Settings
+  CB_FAILURE_THRESHOLD: "5"
+  CB_TIMEOUT: "60"
+  CB_RECOVERY_TIMEOUT: "30"
+  
+  # Health Check Settings
+  HEALTH_CHECK_INTERVAL: "30"
+  HEALTH_CHECK_TIMEOUT: "5"
+  
+  # Request Timeout Settings
+  DEFAULT_REQUEST_TIMEOUT: "30"
+  AI_REQUEST_TIMEOUT: "60"
+  ANALYTICS_REQUEST_TIMEOUT: "45"
+  
+  # Rate Limiting
+  RATE_LIMIT_GUEST: "20"
+  RATE_LIMIT_BASIC: "100"
+  RATE_LIMIT_PREMIUM: "500"
+  RATE_LIMIT_ENTERPRISE: "2000"
+  
+  # Redis Settings
+  REDIS_HOST: "redis-service"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"

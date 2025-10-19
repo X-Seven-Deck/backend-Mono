@@ -22,7 +22,7 @@ load_dotenv()
 # Import routers
 from .routes import (
     menu, inventory, operations, analytics, websocket, business_settings, auth,
-    service_based, retail, professional, universal_analytics, reviews, food
+    service_based, retail, professional, universal_analytics, reviews, food, ai_features
 )
 
 # Import DevOps client
@@ -135,6 +135,9 @@ app.include_router(reviews.router)  # Menu reviews and ratings
 app.include_router(universal_analytics.router)  # Cross-category analytics
 app.include_router(websocket.router)
 app.include_router(business_settings.router)
+
+# AI Features (All 13 AI capabilities)
+app.include_router(ai_features.router)
 
 
 # Health endpoints

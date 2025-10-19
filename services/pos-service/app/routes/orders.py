@@ -19,6 +19,7 @@ from ..models.orders import (
 from ..core.security import get_current_user, get_current_business_id, require_staff_role
 from ..services.database import DatabaseService, get_database_service
 from ..services.tax_engine import TaxEngine, get_tax_engine
+from .websocket import broadcast_order_event, broadcast_table_event
 
 router = APIRouter(prefix="/api/v1/pos/orders", tags=["Orders"])
 
@@ -97,6 +98,19 @@ async def create_order(
         
         # Get complete order with items
         complete_order = await db.get_order_with_items(UUID(created_order["id"]))
+        
+        # Broadcast order creation event via WebSocket
+        await broadcast_order_event(
+            business_id=str(order.business_id),
+            event_type="order_created",
+            order_data={
+                "order_id": created_order["id"],
+                "order_number": created_order.get("order_number"),
+                "table_id": str(order.table_id) if order.table_id else None,
+                "status": OrderStatus.NEW.value,
+                "total_amount": float(tax_calc["total_with_tax"])
+            }
+        )
         
         return OrderWithDetails(**complete_order)
         
@@ -220,6 +234,16 @@ async def update_order(
     
     updated_order = await db.update_order(order_id, update_data)
     
+    # Broadcast order update event
+    await broadcast_order_event(
+        business_id=current_user.get("business_id"),
+        event_type="order_updated",
+        order_data={
+            "order_id": str(order_id),
+            "updates": update_data
+        }
+    )
+    
     return OrderResponse(**updated_order)
 
 
@@ -242,12 +266,33 @@ async def update_order_status(
     # Update status
     updated_order = await db.update_order_status(order_id, status.value)
     
+    # Broadcast status change event
+    await broadcast_order_event(
+        business_id=order["business_id"],
+        event_type="order_status_changed",
+        order_data={
+            "order_id": str(order_id),
+            "old_status": order["status"],
+            "new_status": status.value
+        }
+    )
+    
     # If order completed, free up table
     if status == OrderStatus.COMPLETED and order.get("table_id"):
         await db.update_table_status(
             table_id=UUID(order["table_id"]),
             status="available",
             order_id=None
+        )
+        
+        # Broadcast table availability
+        await broadcast_table_event(
+            business_id=order["business_id"],
+            event_type="table_available",
+            table_data={
+                "table_id": order["table_id"],
+                "status": "available"
+            }
         )
     
     return OrderResponse(**updated_order)
@@ -278,12 +323,32 @@ async def cancel_order(
     # Update to cancelled
     await db.update_order_status(order_id, OrderStatus.CANCELLED.value)
     
+    # Broadcast cancellation event
+    await broadcast_order_event(
+        business_id=order["business_id"],
+        event_type="order_cancelled",
+        order_data={
+            "order_id": str(order_id),
+            "order_number": order.get("order_number")
+        }
+    )
+    
     # Free up table if assigned
     if order.get("table_id"):
         await db.update_table_status(
             table_id=UUID(order["table_id"]),
             status="available",
             order_id=None
+        )
+        
+        # Broadcast table availability
+        await broadcast_table_event(
+            business_id=order["business_id"],
+            event_type="table_available",
+            table_data={
+                "table_id": order["table_id"],
+                "status": "available"
+            }
         )
     
     return None

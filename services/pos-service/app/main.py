@@ -12,7 +12,16 @@ import uvicorn
 from datetime import datetime
 
 from .core.config import settings
-from .routes import orders_router, payments_router, receipts_router, tax_router
+from .routes import (
+    orders_router,
+    payments_router,
+    receipts_router,
+    tax_router
+)
+from .routes.websocket import router as websocket_router
+from .routes.offline import router as offline_router
+from .routes.analytics import router as analytics_router
+from .routes.customers import router as customers_router
 
 # Service metadata
 SERVICE_NAME = "pos-service"
@@ -120,6 +129,10 @@ app.include_router(orders_router)
 app.include_router(payments_router)
 app.include_router(receipts_router)
 app.include_router(tax_router)
+app.include_router(websocket_router)  # WebSocket for real-time updates
+app.include_router(offline_router)    # Offline order queueing
+app.include_router(analytics_router)  # Business analytics
+app.include_router(customers_router)  # Customer management
 
 
 # Health endpoints
@@ -141,8 +154,31 @@ async def root():
         "service": SERVICE_NAME,
         "version": SERVICE_VERSION,
         "description": "Xseven POS Microservice - Enterprise Point of Sale",
-        "docs": "/api/v1/pos/docs",
-        "health": "/health"
+        "status": "operational",
+        "features": [
+            "Order Management",
+            "Payment Processing",
+            "Receipt Generation",
+            "Tax Calculation",
+            "Real-time Updates (WebSocket)",
+            "Offline Order Queueing",
+            "Business Analytics",
+            "Customer Management"
+        ],
+        "endpoints": {
+            "docs": "/docs",
+            "health": "/health",
+            "metrics": "/metrics",
+            "orders": "/api/v1/pos/orders",
+            "payments": "/api/v1/pos/payments",
+            "receipts": "/api/v1/pos/receipts",
+            "tax": "/api/v1/pos/tax",
+            "websocket_orders": "/api/v1/pos/ws/orders",
+            "websocket_tables": "/api/v1/pos/ws/tables",
+            "offline": "/api/v1/pos/offline",
+            "analytics": "/api/v1/pos/analytics",
+            "customers": "/api/v1/pos/customers"
+        }
     }
 
 

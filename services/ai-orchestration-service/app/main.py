@@ -22,7 +22,7 @@ from app.core.llm_provider import llm_manager
 from app.services.langgraph_orchestrator import langgraph_orchestrator
 
 # Import routes
-from app.routes import orchestration, generation, rag, health, crew
+from app.routes import orchestration, generation, rag, health, crew, ai_features, multichannel, temporal_workflows
 
 # Configure logging
 setup_logger("ai-orchestration", settings.log_level)
@@ -61,6 +61,23 @@ async def lifespan(app: FastAPI):
         logger.info("Groq client ready")
     if llm_manager.anthropic_client:
         logger.info("Anthropic client ready")
+    
+    # Initialize AI services
+    from app.services.ai_features_engine import ai_features_engine
+    from app.services.multichannel_integration import multichannel_integration
+    from app.services.temporal_orchestrator import temporal_orchestrator
+    
+    try:
+        await ai_features_engine.initialize()
+        logger.info("AI Features Engine initialized")
+        
+        await multichannel_integration.initialize()
+        logger.info("Multi-Channel Integration initialized")
+        
+        await temporal_orchestrator.initialize()
+        logger.info("Temporal Orchestrator initialized")
+    except Exception as e:
+        logger.warning(f"Service initialization warning: {e}")
     
     logger.info("AI Orchestration Service started successfully")
     
@@ -151,6 +168,9 @@ app.include_router(orchestration.router, prefix="/api/v1/orchestration", tags=["
 app.include_router(generation.router, prefix="/api/v1/generation", tags=["generation"])
 app.include_router(rag.router, prefix="/api/v1/rag", tags=["rag"])
 app.include_router(crew.router, prefix="/api/v1/crew", tags=["crew-ai"])
+app.include_router(ai_features.router, prefix="/api/v1/ai-features", tags=["ai-features"])
+app.include_router(multichannel.router, prefix="/api/v1/multichannel", tags=["multichannel"])
+app.include_router(temporal_workflows.router, prefix="/api/v1/temporal", tags=["temporal-workflows"])
 
 
 # Root endpoint

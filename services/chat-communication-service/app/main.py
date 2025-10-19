@@ -25,7 +25,11 @@ from app.services.audio_call_service import audio_call_service
 from app.services.push_notification_service import push_notification_service
 from app.services.widget_service import widget_service
 from app.services.voice_activity_service import voice_activity_service
-from app.routes import audio_calls, widget
+from app.services.database_service import db_service
+from app.services.ai_service import ai_service
+from app.services.cache_service import cache_service
+from app.services.event_publisher import event_publisher
+from app.routes import audio_calls, widget, chat, multichannel, analytics
 
 # Configure logging
 logging.basicConfig(
@@ -153,11 +157,50 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠ Voice activity service not available: {e}")
     
+    # Initialize database service
+    try:
+        await db_service.initialize()
+        logger.info("✓ Database service initialized")
+    except Exception as e:
+        logger.error(f"✗ Database service failed: {e}")
+    
+    # Initialize AI service
+    try:
+        await ai_service.initialize()
+        logger.info("✓ AI service initialized")
+    except Exception as e:
+        logger.warning(f"⚠ AI service not available: {e}")
+    
+    # Initialize cache service
+    try:
+        await cache_service.initialize()
+        logger.info("✓ Cache service initialized")
+    except Exception as e:
+        logger.warning(f"⚠ Cache service not available: {e}")
+    
+    # Initialize event publisher
+    try:
+        await event_publisher.initialize()
+        logger.info("✓ Event publisher initialized")
+    except Exception as e:
+        logger.warning(f"⚠ Event publisher not available: {e}")
+    
     logger.info(f"🚀 {SERVICE_NAME} is ready")
     
     yield
     
+    # Shutdown
     logger.info(f"Shutting down {SERVICE_NAME}")
+    
+    # Close services
+    if hasattr(cache_service, 'close'):
+        await cache_service.close()
+    if hasattr(event_publisher, 'close'):
+        await event_publisher.close()
+    if hasattr(ai_service, 'close'):
+        await ai_service.close()
+    
+    logger.info(f"{SERVICE_NAME} stopped")
 
 
 # Create FastAPI app
@@ -188,6 +231,9 @@ app.add_middleware(
 # Include routers
 app.include_router(audio_calls.router)
 app.include_router(widget.router)
+app.include_router(chat.router)
+app.include_router(multichannel.router)
+app.include_router(analytics.router)
 
 
 # Health endpoints
@@ -206,7 +252,11 @@ async def health_check():
             "audio_calls": audio_call_service._initialized,
             "push_notifications": push_notification_service._initialized,
             "widget": widget_service._initialized,
-            "voice_activity": voice_activity_service._initialized
+            "voice_activity": voice_activity_service._initialized,
+            "database": db_service._initialized,
+            "ai": ai_service._initialized,
+            "cache": cache_service._initialized,
+            "events": event_publisher._initialized
         },
         "timestamp": datetime.utcnow().isoformat()
     }
@@ -240,13 +290,21 @@ async def root():
             "Push notifications",
             "Widget integration",
             "Voice activity detection",
-            "Real-time WebSocket chat"
+            "Real-time WebSocket chat",
+            "Multi-channel messaging (WhatsApp, Instagram)",
+            "QR code generation and tracking",
+            "AI-powered conversations",
+            "Intent classification and entity extraction",
+            "Comprehensive analytics"
         ],
         "endpoints": {
             "audio_calls": "/api/v1/audio-calls",
             "widget": "/api/v1/widget",
             "voice": "/api/v1/voice",
             "webrtc": "/api/v1/webrtc",
+            "chat": "/api/v1/chat",
+            "multichannel": "/api/v1",
+            "analytics": "/api/v1/analytics",
             "websocket": "/ws/chat/{room_id}",
             "docs": "/docs"
         },
